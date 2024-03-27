@@ -30,42 +30,42 @@ const registerUser = asyncHandler(async (req, res) => {
    const {username, email, fullname, password} = req.body
    console.log("email: " ,email);
 
-if ([fullname, email, username, password].some((field) => {
+ if ([fullname, email, username, password].some((field) => {
   return field?.trim() === ""
-})) {
+ })) {
   throw new ApiError(400, "All fields are required")
-}
+ }
 
-const existedUser = await User.findOne({
+ const existedUser = await User.findOne({
   $or: [{ username }, { email }]
-})
+ })
 
-if (existedUser) {
+ if (existedUser) {
   throw new ApiError(409, "User Already Exists")
-}
+ }
 
 
-const avatarLocalPath = req.files?.avatar[0]?.path;
+ const avatarLocalPath = req.files?.avatar[0]?.path;
 
 
-let coverImageLocalPath;
-if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+ let coverImageLocalPath;
+ if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
   coverImageLocalPath = req.files.coverImage[0].path
 }
 
-if (!avatarLocalPath) {
+ if (!avatarLocalPath) {
   throw new ApiError(400, "Avatar is Required")
-}
+ }
   
 
-const avatar = await uploadOnCloudinary(avatarLocalPath)
-const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+ const avatar = await uploadOnCloudinary(avatarLocalPath)
+ const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
-if (!avatar) {
+ if (!avatar) {
   throw new ApiError(400, "Avatar File is required")
 }
 
-const user = await User.create(
+ const user = await User.create(
   {
     fullname,
     avatar: avatar.url,
@@ -74,19 +74,21 @@ const user = await User.create(
     password,
     username: username.toLowerCase()
   }
-)
+ )
 
-const createdUser = await User.findById(user._id).select(
+ const createdUser = await User.findById(user._id).select(
   "-password -refreshToken"
-)
+ )
 
-if (!createdUser) {
+ if (!createdUser) {
   throw new ApiError(500, "Something went wrong while register a user")
-}
+ }
 
-return res.status(201).json(
+ return res
+ .status(201)
+ .json(
   new ApiResponse(200, createdUser, "User Registered Successfully")
-)
+ )
 
 })
 
@@ -207,10 +209,14 @@ const refreshAccessToken = asyncHandler(async(req, res) => {
  }
 })
 
-const changeCurrentPassword = asyncHandler(async(res, req) => {
-  const {oldPassword, newPassword } = req.body
+const changeCurrentPassword = asyncHandler(async(req, res) => {
+
+  const {oldPassword, newPassword} = req.body
+
 
   const user = await User.findById(req.user?._id)
+
+
   const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
   if (!isPasswordCorrect) {
@@ -218,21 +224,33 @@ const changeCurrentPassword = asyncHandler(async(res, req) => {
   }
 
   user.password = newPassword
+
+
+  if (newPassword === oldPassword) {
+    throw new ApiError(400, "New Password can't be same as Old Password")
+  }
+
+  if (newPassword.length < 6) {
+   throw new ApiError(400, "Password Length should be more than 6 characters") 
+  }
+  
   await user.save({validateBeforeSave: false})
 
 
   return res
   .status(200)
   .json(new ApiResponse(200, {}, "Password change is Successfully"))
+
+  
 })
 
-const getCurrentUser = asyncHandler(async(res, req) => {
+const getCurrentUser = asyncHandler(async(req, res) => {
   return res
   .status(200)
   .json(new ApiResponse(200, req.user, "current user fetched succesfully"))
 })
 
-const updateAccountDetails = asyncHandler(async(res, res) => {
+const updateAccountDetails = asyncHandler(async(req, res) => {
   const {fullname, email} = req.body
 
   if (!(fullname || email)) {
@@ -386,7 +404,7 @@ const getUserChannelProfile = asyncHandler(async(req, res) => {
   )
 })
 
-const getWatchHistory = asyncHandler(async(res, req) => {
+const getWatchHistory = asyncHandler(async(req, res) => {
 
  const user = await User.aggregate([
   {
